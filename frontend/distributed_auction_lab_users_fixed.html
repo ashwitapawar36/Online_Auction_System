@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Distributed Auction Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1015;
+    --card: #0f1921;
+    --tile: #121f29;
+    --line: #1f303b;
+    --line-strong: #2b4250;
+    --text: #e8eef2;
+    --muted: #8ea3b0;
+    --accent: #3cc3d1;
+    --accent-ink: #04222a;
+    --accent-wash: #10303a;
+    --good: #37d39a;
+    --bad: #f4796b;
+    --warn: #f2b64e;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
+  .app { max-width: 720px; margin: 0 auto; padding: 28px 20px 56px; }
+
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; }
+  .lede { color: var(--muted); font-size: 13px; max-width: 540px; margin: 0 0 20px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted);
+         font: 500 13px var(--sans); padding: 10px 12px; cursor: pointer; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  .panel[hidden] { display: none; }
+
+  /* Cards, text */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .good { color: var(--good); }
+  .bad { color: var(--bad); }
+  .warn { color: var(--warn); }
+  .info { color: var(--accent); }
+  .dim { color: var(--muted); }
+
+  /* Controls */
+  .btn { background: var(--tile); color: var(--text); border: 1px solid var(--line-strong); border-radius: 6px;
+         padding: 7px 12px; font: 500 12px var(--sans); cursor: pointer; }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type="number"], input[type="text"], select {
+    background: #0a1319; border: 1px solid var(--line-strong); color: var(--text); border-radius: 6px;
+    padding: 7px 9px; font: 13px var(--mono); width: 100%; }
+  input[type="number"]:focus, input[type="text"]:focus, select:focus { border-color: var(--accent); outline: none; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 14px; height: 14px; }
+
+  /* Terminal */
+  .term { background: #070c10; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+          font: 12px/1.6 var(--mono); color: #cfdde4; min-height: 110px; max-height: 260px; overflow: auto; white-space: pre-wrap; }
+  .term.tall { min-height: 140px; max-height: 340px; }
+  .term > div { min-height: 1.6em; }
+
+  /* Tables */
+  .scroll { overflow-x: auto; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tbl td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl td.row-h { font-weight: 600; white-space: nowrap; }
+  .tbl .mono { font-family: var(--mono); white-space: nowrap; }
+  .tbl tr.round td { background: var(--tile); color: var(--muted); font-size: 11.5px; }
+
+  /* Tab 1: RMI */
+  .jvms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+  .jvm { background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 74px; transition: border-color .2s, background .2s; }
+  .jvm strong { display: block; font-size: 13px; }
+  .jvm span { display: block; color: var(--muted); font-size: 11.5px; }
+  .jvm .live { color: var(--text); margin-top: 6px; font-weight: 500; }
+  .jvm.active { border-color: var(--accent); background: var(--accent-wash); }
+  .steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 7px; font-size: 12.5px; }
+  .step { color: var(--muted); transition: color .2s; }
+  .step.active { color: var(--accent); }
+  .step.done { color: var(--good); }
+  .cmp-note { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .cmp-note > div { background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .cmp-note strong { display: block; font-size: 13px; margin-bottom: 2px; }
+  .cmp-note p { margin: 0; font-size: 11.5px; color: var(--muted); }
+
+  /* Tab 2: threads */
+  .bid-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .big { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .bidders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .bidder { background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .bidder strong { font-size: 13px; display: block; }
+  .bidder .field { margin: 2px 0 8px; }
+  .bidder .st { font-size: 11.5px; min-height: 1.4em; font-family: var(--mono); }
+
+  /* Tab 3: clocks */
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .card-head h2 { margin: 0; }
+  .card-head .btns { display: flex; gap: 8px; }
+  .clocks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .tile { background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .tile.server { border-color: var(--accent); background: var(--accent-wash); }
+  .tile .lbl { font-size: 11.5px; color: var(--muted); }
+  .tile .time { font: 500 16px var(--mono); letter-spacing: -0.02em; }
+  .tile .stat { font-size: 11.5px; min-height: 2.9em; }
+  .tile .btn { align-self: flex-start; margin-top: 2px; }
+  .fire-note { font-size: 12.5px; margin: 12px 0 0; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--tile); border-radius: 0 6px 6px 0; }
+  .meta { font: 11.5px var(--mono); color: var(--muted); margin: 10px 0 12px; }
+
+  /* Tab 4: election */
+  .coord-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .coord-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); flex: none; }
+  .dot.warn { background: var(--warn); }
+  .dot.bad { background: var(--bad); }
+  .dot.beat { animation: beat .9s ease-out; }
+  @keyframes beat { 0% { box-shadow: 0 0 0 0 rgba(55,211,154,.7); } 100% { box-shadow: 0 0 0 9px rgba(55,211,154,0); } }
+  .nodes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .node { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .node.is-coord { border-color: var(--accent); background: var(--accent-wash); }
+  .node.is-electing { border-color: var(--warn); }
+  .node.is-down { opacity: .7; border-style: dashed; }
+  .node-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .node-head strong { font-size: 13px; }
+  .role { font-size: 11px; color: var(--muted); }
+  .role.coordinator { color: var(--accent); }
+  .role.down { color: var(--bad); }
+
+  @media (max-width: 620px) {
+    .clocks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .jvms, .bidders, .cmp-note { grid-template-columns: 1fr; }
+    .bid-top { flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot.beat { animation: none; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Distributed Auction Lab</h1>
+  <p class="lede">Live frontend for the Distributed Online Auction System covering Experiments 1 to 6. All six experiments use the Java/PostgreSQL backend. Exp 5 demonstrates real Primary–Backup replication and failover using the replica_servers table.</p>
+
+  <div class="card" id="user-card">
+    <h2>Register bidder</h2>
+    <p class="hint">Create a real user in PostgreSQL. The generated user ID is used internally for bidding.</p>
+    <div class="row">
+      <label class="field" style="flex:1;min-width:150px">Name<input type="text" id="user-name" placeholder="e.g. Ashwita"></label>
+      <label class="field" style="flex:1;min-width:190px">Email<input type="text" id="user-email" placeholder="e.g. ashwita@gmail.com"></label>
+      <button class="btn primary" id="user-register">Register bidder</button>
+      <button class="btn" id="user-refresh">Refresh users</button>
+    </div>
+    <p class="meta" id="user-status">Loading users from PostgreSQL...</p>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Experiments">
+    <button class="tab" role="tab" id="t-rmi" data-tab="rmi" aria-selected="true" aria-controls="tab-rmi">Exp 1 · RMI and RPC</button>
+    <button class="tab" role="tab" id="t-threads" data-tab="threads" aria-selected="false" aria-controls="tab-threads">Exp 2 · Bidding and threads</button>
+    <button class="tab" role="tab" id="t-clock" data-tab="clock" aria-selected="false" aria-controls="tab-clock">Exp 3 · Clock synchronization</button>
+    <button class="tab" role="tab" id="t-election" data-tab="election" aria-selected="false" aria-controls="tab-election">Exp 4 · Election</button>
+    <button class="tab" role="tab" id="t-fault" data-tab="fault" aria-selected="false" aria-controls="tab-fault">Exp 5 · Fault tolerance</button>
+    <button class="tab" role="tab" id="t-replication" data-tab="replication" aria-selected="false" aria-controls="tab-replication">Exp 6 · Replication & consistency</button>
+  </div>
+
+  <!-- ================= TAB 1: RMI and RPC ================= -->
+  <section class="panel" id="tab-rmi" role="tabpanel" aria-labelledby="t-rmi">
+    <div class="card">
+      <h2>One remote call to placeBid()</h2>
+      <p class="hint">The bidder calls a method on an object that lives in another JVM. Press the button to follow one call through the registry, the stub and the server.</p>
+      <div class="row">
+        <label class="field" style="width:190px">Bidder<select id="rmi-id" class="user-select"></select></label>
+        <label class="field" style="width:120px">Amount<input type="number" id="rmi-amt" value="55000" min="1" step="500"></label>
+        <button class="btn primary" id="rmi-go">Call placeBid()</button>
+      </div>
+      <div class="jvms">
+        <div class="jvm" id="jvm-client"><strong>Client JVM</strong><span>the bidder, holds only a stub</span></div>
+        <div class="jvm" id="jvm-registry"><strong>RMI registry</strong><span>port 1099, name "AuctionService"</span></div>
+        <div class="jvm" id="jvm-server"><strong>Server JVM</strong><span>real AuctionServer object</span><span class="live" id="rmi-highest">highest bid: Rs. 50000</span></div>
+      </div>
+      <ol class="steps" id="rmi-steps"></ol>
+    </div>
+    <div class="term" id="rmi-log" aria-live="polite"></div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>RPC compared with RMI</h2>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th></th><th>RPC</th><th>RMI</th></tr></thead>
+          <tbody>
+            <tr><td class="row-h">Style</td><td>Procedure-oriented, calls functions</td><td>Object-oriented, calls methods on objects</td></tr>
+            <tr><td class="row-h">Data</td><td>Primitive types</td><td>Primitives and Java objects</td></tr>
+            <tr><td class="row-h">Passing</td><td>By value: the server gets a copy</td><td>By value (serialized copy) or by reference (stub)</td></tr>
+            <tr><td class="row-h">Language</td><td>Language independent</td><td>Java specific</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cmp-note">
+        <div><strong>RPC: pass by value</strong><p>Client has A=5 and B=6. The server receives its own copies at its own addresses. Nothing links back to the client's memory.</p></div>
+        <div><strong>RMI: pass by reference</strong><p>The client holds a stub. The real object and its state stay on the server, and the client only holds a handle to it.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TAB 2: Bidding and threads ================= -->
+  <section class="panel" id="tab-threads" role="tabpanel" aria-labelledby="t-threads" hidden>
+    <div class="card">
+      <div class="bid-top">
+        <div>
+          <div class="hint" style="margin:0">Highest bid on the shared auction (PostgreSQL <code>auctions</code> row)</div>
+          <div class="big" id="th-highest">Rs. 50000</div>
+          <div class="meta" id="th-end" style="margin:6px 0 0">auction end time: —</div>
+        </div>
+        <label class="check"><input type="checkbox" id="th-sync" checked disabled> synchronized placeBid() (Java server)</label>
+      </div>
+      <p class="hint" style="margin:10px 0 0">Send three HTTP requests at the same moment. The Java RMI server handles them concurrently and synchronized placeBid() protects the shared auction state.</p>
+    </div>
+    <div class="card">
+      <div class="bidders" id="th-bidders"></div>
+      <div class="row">
+        <button class="btn primary" id="th-go">Send all three bids at once</button>
+        <button class="btn" id="th-reset">Refresh from PostgreSQL</button>
+      </div>
+    </div>
+    <div class="term tall" id="th-log" aria-live="polite"></div>
+  </section>
+
+  <!-- ================= TAB 3: Clock synchronization ================= -->
+  <section class="panel" id="tab-clock" role="tabpanel" aria-labelledby="t-clock" hidden>
+    <div class="card">
+      <div class="card-head">
+        <h2>Live clocks</h2>
+        <div class="btns">
+          <button class="btn primary" id="ck-sync-all">Synchronize all clients</button>
+          <button class="btn" id="ck-reset">Reset clocks</button>
+        </div>
+      </div>
+      <div class="clocks" id="ck-grid"></div>
+      <p class="hint" style="margin:0">Choose any 3 registered PostgreSQL users as distributed clients. Clients A and B start with simulated clock drift; synchronization calls the real Java Cristian endpoint and stores the result in <code>clock_sync</code>.</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:10px">Last synchronization</h2>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>Client</th><th>Sent (T1)</th><th>Server said (Ts)</th><th>Received (T2)</th><th>RTT</th><th>Offset</th><th>Corrected time</th></tr></thead>
+          <tbody id="ck-sync-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Simultaneous bids</h2>
+      <p class="hint">Select any 3 registered users. The test automatically uses an amount above the current PostgreSQL highest bid, then sends all 3 requests together. Because <code>placeBid()</code> is synchronized, one is accepted and the other two see the updated highest bid and are rejected.</p>
+      <div class="row" id="ck-client-selects"></div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="width:150px"><span class="muted">Test amount</span><input type="number" id="ck-amt" value="0" min="1" step="500"></label>
+        <button class="btn primary" id="ck-fire">Fire three bids together</button>
+        <button class="btn" id="ck-auction-reset">Refresh bids</button>
+      </div>
+      <div class="meta" id="ck-meta"></div>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>Lamport</th><th>Bidder</th><th>Amount</th><th>Time stamped by client</th><th>Server received at</th><th>Result</th></tr></thead>
+          <tbody id="ck-bids-body"></tbody>
+        </table>
+      </div>
+      <p class="fire-note" id="ck-note" hidden></p>
+    </div>
+  </section>
+
+  <!-- ================= TAB 4: Election ================= -->
+  <section class="panel" id="tab-election" role="tabpanel" aria-labelledby="t-election" hidden>
+    <div class="card">
+      <h2>Real Bully election servers</h2>
+      <p class="hint">State below comes from PostgreSQL <code>election.server_nodes</code>. Start an election through the Java RMI election service.</p>
+      <div class="row">
+        <label class="field" style="width:110px">Start from server<input type="number" id="el-start-id" value="1" min="1" max="3"></label>
+        <button class="btn primary" id="el-start">Start election</button>
+        <button class="btn" id="el-refresh">Refresh PostgreSQL state</button>
+      </div>
+    </div>
+    <div class="nodes" id="el-nodes"></div>
+    <div class="term tall" id="el-log" aria-live="polite"></div>
+  </section>
+
+  <!-- ================= TAB 5: Fault tolerance ================= -->
+  <section class="panel" id="tab-fault" role="tabpanel" aria-labelledby="t-fault" hidden>
+    <div class="card">
+      <h2>Primary–Backup Fault Tolerance</h2>
+      <p class="hint">Experiment 5 demonstrates failover. S1 is the Primary server and S2 is the Backup. The latest auction state is copied to S2 so the service can continue if S1 fails.</p>
+      <div class="row">
+        <label class="field" style="width:150px">New bid amount<input type="number" id="ft-amt" value="60000" min="1" step="500"></label>
+        <button class="btn primary" id="ft-bid">Send bid & replicate</button>
+        <button class="btn" id="ft-fail">Simulate S1 failure</button>
+        <button class="btn" id="ft-reset">Reset experiment</button>
+      </div>
+    </div>
+
+    <div class="cmp-note">
+      <div id="ft-s1-card">
+        <strong>S1 — Primary Server</strong>
+        <p class="meta" id="ft-s1-role">Role: PRIMARY · Status: ACTIVE</p>
+        <p class="big" id="ft-s1-bid">Rs. 58500</p>
+        <p class="hint" style="margin:6px 0 0">Laptop auction state</p>
+      </div>
+      <div id="ft-s2-card">
+        <strong>S2 — Backup Server</strong>
+        <p class="meta" id="ft-s2-role">Role: BACKUP · Status: ACTIVE</p>
+        <p class="big" id="ft-s2-bid">Rs. 58500</p>
+        <p class="hint" style="margin:6px 0 0">Replicated auction state</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Failover status</h2>
+      <p class="fire-note" id="ft-status">System ready. S1 is serving the auction and S2 is standing by.</p>
+    </div>
+    <div class="term tall" id="ft-log" aria-live="polite"></div>
+  </section>
+
+  <!-- ================= TAB 6: Replication & consistency ================= -->
+  <section class="panel" id="tab-replication" role="tabpanel" aria-labelledby="t-replication" hidden>
+    <div class="card">
+      <h2>Primary → replica consistency</h2>
+      <p class="hint">STRONG waits for replication. EVENTUAL returns first and the replica catches up after the configured delay.</p>
+      <div class="row">
+        <button class="btn" id="rp-strong">Use STRONG</button>
+        <button class="btn" id="rp-eventual">Use EVENTUAL</button>
+        <button class="btn" id="rp-refresh">Refresh</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="cmp-note">
+        <div><strong>Primary database</strong><p class="big" id="rp-primary">—</p></div>
+        <div><strong>Replica database</strong><p class="big" id="rp-replica">—</p></div>
+      </div>
+      <p class="meta" id="rp-mode"></p>
+      <div class="row">
+        <label class="field" style="width:190px">Bidder<select id="rp-id" class="user-select"></select></label>
+        <label class="field" style="width:130px">Bid amount<input type="number" id="rp-amt" value="65000" min="1" step="500"></label>
+        <button class="btn primary" id="rp-bid">Place real bid</button>
+      </div>
+    </div>
+    <div class="card"><h2>Replication log</h2><div class="scroll"><table class="tbl"><thead><tr><th>ID</th><th>Table</th><th>Operation</th><th>Record</th><th>Status</th><th>Created</th><th>Replicated</th></tr></thead><tbody id="rp-log-body"></tbody></table></div></div>
+    <div class="term" id="rp-term"></div>
+  </section>
+</main>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const pad=(n,l=2)=>String(n).padStart(l,'0');
+const fmtTime=ms=>{const d=new Date(Number(ms));return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,'0')}`};
+class Term{constructor(el){this.el=el} line(t,c=''){const d=document.createElement('div');d.className=c;d.textContent=t;this.el.appendChild(d);this.el.scrollTop=this.el.scrollHeight} clear(){this.el.textContent=''}}
+const API='http://localhost:8080';
+async function request(path,method='GET') { const r=await fetch(API+path,{method}); const text=await r.text(); let data; try{data=JSON.parse(text)}catch{data={message:text}} if(!r.ok) throw new Error(data.message||text||`HTTP ${r.status}`); return data; }
+const money=n=>`Rs. ${Number(n).toFixed(0)}`;
+let USERS=[];
+function userOptions(selected){return USERS.map(u=>`<option value="${u.userId}" ${String(u.userId)===String(selected)?'selected':''}>${u.name} (ID ${u.userId})</option>`).join('')}
+function populateUserSelects(){ $$('.user-select').forEach(sel=>{const old=sel.value;sel.innerHTML=userOptions(old);}); renderThreadBidders(); renderClockSelectors(); renderClockUsers(); }
+async function loadUsers(){try{USERS=await request('/api/users');populateUserSelects();$('#user-status').textContent=`${USERS.length} bidder(s) loaded from PostgreSQL.`;$('#user-status').className='meta good'}catch(e){$('#user-status').textContent=e.message;$('#user-status').className='meta bad'}}
+$('#user-register').addEventListener('click',async()=>{const name=$('#user-name').value.trim(),email=$('#user-email').value.trim(),btn=$('#user-register');if(!name||!email){$('#user-status').textContent='Enter both name and email.';$('#user-status').className='meta bad';return}btn.disabled=true;try{const u=await request(`/api/users?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`,'POST');$('#user-status').textContent=`Registered ${u.name}. Bidder ID: ${u.userId}`;$('#user-status').className='meta good';$('#user-name').value='';$('#user-email').value='';await loadUsers();$$('.user-select').forEach(sel=>sel.value=String(u.userId))}catch(e){$('#user-status').textContent=e.message;$('#user-status').className='meta bad'}finally{btn.disabled=false}});
+$('#user-refresh').addEventListener('click',loadUsers);
+
+(function tabs(){const tabs=$$('.tab'),panels=$$('.panel');function select(id){tabs.forEach(t=>{const on=t.dataset.tab===id;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1});panels.forEach(p=>p.hidden=p.id!=='tab-'+id);if(id==='replication') refreshReplication();if(id==='election') refreshElection();if(id==='fault') refreshFaultTolerance();if(id==='threads') refreshThreads();if(id==='rmi') refreshRmi();}tabs.forEach((t,i)=>{t.addEventListener('click',()=>select(t.dataset.tab));t.addEventListener('keydown',e=>{if(!['ArrowRight','ArrowLeft'].includes(e.key))return;const n=tabs[(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length];n.focus();select(n.dataset.tab)})});select('rmi')})();
+
+// EXP 1: real HTTP -> RMI -> PostgreSQL
+const rmiTerm=new Term($('#rmi-log'));
+const STEPS=['Browser sends request to Java HTTP bridge','HTTP bridge looks up AuctionService on RMI registry','Bridge calls remote AuctionServer.placeBid()','RMI server executes synchronized placeBid()','AuctionServer writes bid/current bid to PostgreSQL','Result returns through RMI and HTTP to the browser'];
+$('#rmi-steps').innerHTML=STEPS.map((x,i)=>`<li class="step">${i+1}. ${x}</li>`).join('');
+async function refreshRmi(){try{const a=await request('/api/auction');$('#rmi-highest').textContent=`highest bid: ${money(a.primaryBid)}`}catch(e){$('#rmi-highest').textContent='backend unavailable'}}
+$('#rmi-go').addEventListener('click',async()=>{const id=+$('#rmi-id').value,amt=+$('#rmi-amt').value,btn=$('#rmi-go'),steps=$$('.step',$('#rmi-steps'));rmiTerm.clear();if(id<1||amt<=0)return rmiTerm.line('Enter valid bidder ID and amount.','bad');btn.disabled=true;try{steps.forEach(x=>x.className='step');for(let i=0;i<4;i++){steps[i].className='step active';rmiTerm.line(`${i+1}. ${STEPS[i]}`);await sleep(250);steps[i].className='step done'}const r=await request(`/api/bid?bidderId=${id}&amount=${amt}`,'POST');for(let i=4;i<6;i++){steps[i].className='step active';rmiTerm.line(`${i+1}. ${STEPS[i]}`);await sleep(200);steps[i].className='step done'}rmiTerm.line(r.message,r.message.includes('ACCEPTED')?'good':'bad');$('#rmi-highest').textContent=`highest bid: ${money(r.primaryBid)}`}catch(e){rmiTerm.line(e.message,'bad')}finally{btn.disabled=false}});
+
+// EXP 2: three real concurrent requests
+const thTerm=new Term($('#th-log')), DEFAULTS=[55000,58000,52000];
+function renderThreadBidders(){if(!$('#th-bidders'))return;const previous=[0,1,2].map(i=>{const el=document.getElementById('th-user-'+i);return el?el.value:null});const previousAmts=[0,1,2].map(i=>{const el=document.getElementById('th-amt-'+i);return el?el.value:null});$('#th-bidders').innerHTML=DEFAULTS.map((v,i)=>`<div class="bidder"><strong>Request ${i+1}</strong><label class="field">bidder<select id="th-user-${i}" class="user-select">${userOptions(previous[i]||USERS[i%Math.max(USERS.length,1)]?.userId)}</select></label><label class="field">bid amount<input type="number" id="th-amt-${i}" value="${previousAmts[i]||v}" step="500" min="1"></label><div class="st" id="th-st-${i}"></div></div>`).join('')}
+renderThreadBidders();
+function fmtEnd(ms){if(!ms)return'—';const d=new Date(Number(ms));const now=Date.now();const closed=Number(ms)<=now;return `${d.toLocaleString()} ${closed?'(CLOSED — new bids are rejected by the server)':'(open)'}`}
+async function refreshThreads(){try{const a=await request('/api/auction');$('#th-highest').textContent=money(a.primaryBid);const endEl=$('#th-end');endEl.textContent=`auction end time: ${fmtEnd(a.auctionEndTime)}`;endEl.className='meta '+(Number(a.auctionEndTime)<=Date.now()?'bad':'good')}catch{}}
+$('#th-go').addEventListener('click',async()=>{const amts=DEFAULTS.map((_,i)=>+$('#th-amt-'+i).value);thTerm.clear();$('#th-go').disabled=true;try{thTerm.line('Sending 3 requests concurrently to the real Java server...','info');const jobs=amts.map((amt,i)=>{const id=+$('#th-user-'+i).value,st=$('#th-st-'+i);st.textContent='request sent';return request(`/api/bid?bidderId=${id}&amount=${amt}`,'POST').then(r=>{st.textContent=r.message.includes('ACCEPTED')?'ACCEPTED':'REJECTED';st.className='st '+(r.message.includes('ACCEPTED')?'good':'bad');thTerm.line(`${USERS.find(u=>u.userId===id)?.name||('Bidder '+id)}: ${r.message}`,r.message.includes('ACCEPTED')?'good':'bad');return r})});await Promise.all(jobs);await refreshThreads();thTerm.line(`Final PostgreSQL highest bid: ${$('#th-highest').textContent}`,'info')}catch(e){thTerm.line(e.message,'bad')}finally{$('#th-go').disabled=false}});
+$('#th-reset').addEventListener('click',refreshThreads);
+
+// EXP 3: real Cristian sync saved to clock_sync + real bids table
+const DRIFTS=[-5000,3000,0];let clients=[],lastSync={},lastTestBidIds=[];
+function selectedClockUsers(){const sels=$$('#ck-client-selects select');if(sels.length===3)return sels.map(x=>USERS.find(u=>u.userId===+x.value)).filter(Boolean);return USERS.slice(0,3)}
+function renderClockSelectors(){const box=$('#ck-client-selects');if(!box)return;const previous=$$('select',box).map(x=>+x.value);box.innerHTML=[0,1,2].map(i=>`<label class="field" style="width:190px">Client ${String.fromCharCode(65+i)}<select id="ck-user-${i}" class="user-select">${userOptions(previous[i]||USERS[i%Math.max(USERS.length,1)]?.userId)}</select></label>`).join('');$$('select',box).forEach(x=>x.addEventListener('change',renderClockUsers))}
+function renderClockUsers(){const chosen=selectedClockUsers();clients=chosen.map((u,i)=>({id:u.userId,name:u.name,drift:DRIFTS[i]??0,offset:DRIFTS[i]??0,synced:false}));lastSync={};if(!clients.length){$('#ck-grid').innerHTML='<div class="muted">Register users first.</div>';return}$('#ck-grid').innerHTML=`<div class="tile server"><div class="lbl">Server (reference)</div><div class="time" id="clk-0"></div><div class="stat muted">Java server time</div></div>`+clients.map((c,i)=>`<div class="tile"><div class="lbl">Client ${String.fromCharCode(65+i)}: ${c.name} (ID ${c.id})</div><div class="time" id="clk-${c.id}"></div><div class="stat" id="stat-${c.id}"></div><button class="btn" data-sync="${c.id}">Synchronize</button></div>`).join('');renderClockStatus();renderSync()}
+function renderClockStatus(){clients.forEach(c=>{const e=$('#stat-'+c.id);if(!e)return;e.textContent=c.synced?`Synchronized; correction ${c.lastCorrection||0} ms`:`Initial drift ${c.drift} ms`;e.className='stat '+(c.synced?'good':'bad')})}
+function renderSync(){ $('#ck-sync-body').innerHTML=clients.map((c,i)=>{const x=lastSync[c.id],label=`Client ${String.fromCharCode(65+i)} · ${c.name}`;return x?`<tr><td>${label}</td><td class="mono">${fmtTime(x.clientSendTime)}</td><td class="mono">${fmtTime(x.serverTime)}</td><td class="mono">${fmtTime(x.clientReceiveTime)}</td><td>${x.rtt} ms</td><td>${x.clockOffset} ms</td><td class="mono">${fmtTime(x.correctedTime)}</td></tr>`:`<tr><td>${label}</td><td colspan="6" class="muted">not synchronized yet</td></tr>`}).join('') }
+async function syncClient(c){const x=await request(`/api/clock-sync?clientId=${c.id}&offset=${c.drift}`,'POST');lastSync[c.id]=x;c.offset=0;c.synced=true;c.lastCorrection=x.clockOffset;renderClockStatus();renderSync()}
+$('#ck-grid').addEventListener('click',async e=>{const b=e.target.closest('[data-sync]');if(b)try{await syncClient(clients.find(c=>c.id===+b.dataset.sync))}catch(err){alert(err.message)}});
+$('#ck-sync-all').addEventListener('click',async()=>{for(const c of clients)await syncClient(c)});
+$('#ck-reset').addEventListener('click',()=>{renderClockUsers()});
+async function renderRealBids(onlyIds=null){try{let bids=await request('/api/bids');if(onlyIds&&onlyIds.length)bids=bids.filter(b=>onlyIds.includes(b.bidId));const names=Object.fromEntries(USERS.map(u=>[u.userId,u.name]));$('#ck-bids-body').innerHTML=bids.map(b=>`<tr><td>${b.lamportTime}</td><td>${names[b.bidderId]||'User'} (ID ${b.bidderId})</td><td>${money(b.amount)}</td><td class="muted">server event</td><td class="mono">${b.physicalTime}</td><td class="${b.result==='ACCEPTED'?'good':'bad'}">${b.result}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No rows to show.</td></tr>';const a=await request('/api/auction');$('#ck-meta').textContent=`PostgreSQL highest bid: ${money(a.primaryBid)}${onlyIds&&onlyIds.length?' | showing only this simultaneous-bid test':' | showing recent PostgreSQL bids'}`}catch(e){$('#ck-meta').textContent=e.message}}
+$('#ck-fire').addEventListener('click',async()=>{if(clients.length<3){alert('Register/select 3 users first.');return}if(new Set(clients.map(c=>c.id)).size<3){alert('Choose 3 different registered users.');return}const btn=$('#ck-fire');btn.disabled=true;try{const before=await request('/api/auction');const amt=Math.ceil((Number(before.primaryBid)+1000)/500)*500;$('#ck-amt').value=amt;const oldBids=await request('/api/bids');const oldIds=new Set(oldBids.map(b=>b.bidId));await Promise.all(clients.map(c=>request(`/api/bid?bidderId=${c.id}&amount=${amt}`,'POST')));await sleep(200);const after=await request('/api/bids');lastTestBidIds=after.filter(b=>!oldIds.has(b.bidId)).map(b=>b.bidId);await renderRealBids(lastTestBidIds);$('#ck-note').hidden=false;$('#ck-note').textContent=`Test amount ${money(amt)} was chosen above the previous highest bid ${money(before.primaryBid)}. The table shows only the new rows from this test.`}catch(e){alert(e.message)}finally{btn.disabled=false}});
+$('#ck-auction-reset').addEventListener('click',()=>renderRealBids());setInterval(()=>{const now=Date.now();const s=$('#clk-0');if(s)s.textContent=fmtTime(now);clients.forEach(c=>{const el=$('#clk-'+c.id);if(el)el.textContent=fmtTime(now+c.offset)})},100);
+
+// EXP 4: real election state from PostgreSQL + RMI election trigger
+const elTerm=new Term($('#el-log'));
+async function refreshElection(){try{const nodes=await request('/api/election/nodes');$('#el-nodes').innerHTML=nodes.map(n=>`<div class="node ${n.coordinator?'is-coord':''} ${n.status==='DOWN'?'is-down':''}"><div class="node-head"><strong>${n.serverName||('Server '+n.serverId)}</strong><span class="role ${n.coordinator?'coordinator':''}">${n.coordinator?'coordinator':n.status.toLowerCase()}</span></div><span class="muted">Server ID ${n.serverId} · port ${n.port}</span><span>${n.status}</span></div>`).join('');const c=nodes.find(n=>n.coordinator);elTerm.line(c?`PostgreSQL coordinator: ${c.serverName||('Server '+c.serverId)} (ID ${c.serverId})`:'No coordinator marked','info')}catch(e){elTerm.line(e.message,'bad')}}
+$('#el-refresh').addEventListener('click',()=>{elTerm.clear();refreshElection()});
+$('#el-start').addEventListener('click',async()=>{const id=+$('#el-start-id').value;elTerm.clear();try{const r=await request(`/api/election/start?serverId=${id}`,'POST');elTerm.line(r.message,'good');await sleep(700);await refreshElection()}catch(e){elTerm.line(e.message,'bad')}});
+
+// EXP 5: real Primary–Backup fault tolerance using Java + PostgreSQL
+const ftTerm=new Term($('#ft-log'));
+let ftState={s1Role:'PRIMARY',s1Status:'ACTIVE',s2Role:'BACKUP',s2Status:'ACTIVE',s1Bid:58500,s2Bid:58500};
+
+async function refreshFaultTolerance(){
+  try{
+    const rows=await request('/api/fault-tolerance/state');
+    const s1=rows.find(x=>x.serverId===1);
+    const s2=rows.find(x=>x.serverId===2);
+    if(!s1||!s2) throw new Error('S1/S2 not found in replica_servers.');
+    ftState={
+      s1Role:s1.role,s1Status:s1.status,
+      s2Role:s2.role,s2Status:s2.status,
+      s1Bid:Number(s1.currentBid),s2Bid:Number(s2.currentBid)
+    };
+    renderFaultTolerance();
+  }catch(e){
+    ftTerm.line(e.message,'bad');
+  }
+}
+
+function renderFaultTolerance(){
+  $('#ft-s1-role').textContent=`Role: ${ftState.s1Role} · Status: ${ftState.s1Status}`;
+  $('#ft-s2-role').textContent=`Role: ${ftState.s2Role} · Status: ${ftState.s2Status}`;
+  $('#ft-s1-bid').textContent=money(ftState.s1Bid);
+  $('#ft-s2-bid').textContent=money(ftState.s2Bid);
+  $('#ft-s1-card').style.opacity=ftState.s1Status==='FAILED'?'.62':'1';
+  $('#ft-s2-card').style.borderColor=ftState.s2Role==='PRIMARY'?'var(--accent)':'var(--line)';
+  const status=$('#ft-status');
+  if(ftState.s1Status==='FAILED'&&ftState.s2Role==='PRIMARY'){
+    status.textContent=`S1 failed. S2 was promoted to PRIMARY and retained the latest bid ${money(ftState.s2Bid)}. Auction service continues.`;
+    status.className='fire-note good';
+  }else{
+    status.textContent=`S1 is ${ftState.s1Role} and ${ftState.s1Status}. S2 is ${ftState.s2Role} and stores ${money(ftState.s2Bid)}.`;
+    status.className='fire-note';
+  }
+}
+
+$('#ft-bid').addEventListener('click',async()=>{
+  const amt=+$('#ft-amt').value;
+  if(!(amt>0)){ftTerm.line('Enter a valid bid amount.','bad');return}
+  ftTerm.clear();
+  try{
+    ftTerm.line(`Sending ${money(amt)} to Primary S1...`,'info');
+    const r=await request(`/api/fault-tolerance/replicate?amount=${amt}`,'POST');
+    ftTerm.line(r.message,'good');
+    await refreshFaultTolerance();
+    ftTerm.line(`Primary S1: ${money(ftState.s1Bid)}`,'good');
+    ftTerm.line(`Backup S2: ${money(ftState.s2Bid)}`,'good');
+    if(ftState.s1Bid===ftState.s2Bid) ftTerm.line('REPLICATION SUCCESSFUL','good');
+  }catch(e){
+    ftTerm.line(e.message,'bad');
+    await refreshFaultTolerance();
+  }
+});
+
+$('#ft-fail').addEventListener('click',async()=>{
+  ftTerm.clear();
+  ftTerm.line('SIMULATING PRIMARY SERVER FAILURE','warn');
+  try{
+    const r=await request('/api/fault-tolerance/fail-primary','POST');
+    ftTerm.line(r.message,'good');
+    await refreshFaultTolerance();
+    ftTerm.line(`S1: ${ftState.s1Role} · ${ftState.s1Status}`,'bad');
+    ftTerm.line(`S2: ${ftState.s2Role} · ${ftState.s2Status}`,'good');
+    ftTerm.line(`Latest bid preserved: ${money(ftState.s2Bid)}`,'good');
+    ftTerm.line('Auction service continues successfully.','good');
+  }catch(e){
+    ftTerm.line(e.message,'bad');
+    await refreshFaultTolerance();
+  }
+});
+
+$('#ft-reset').addEventListener('click',async()=>{
+  ftTerm.clear();
+  try{
+    const r=await request('/api/fault-tolerance/reset','POST');
+    $('#ft-amt').value=60000;
+    ftTerm.line(r.message,'info');
+    await refreshFaultTolerance();
+  }catch(e){
+    ftTerm.line(e.message,'bad');
+  }
+});
+
+refreshFaultTolerance();
+
+// EXP 6: real primary/replica + replication_log
+const rpTerm=new Term($('#rp-term'));
+function replicationStatusClass(status){if(status==='REPLICATED')return'good';if(status==='FAILED')return'bad';return'warn'}
+async function refreshReplication(){try{const [a,logs]=await Promise.all([request('/api/auction'),request('/api/replication-log')]);$('#rp-primary').textContent=money(a.primaryBid);$('#rp-replica').textContent=money(a.replicaBid);$('#rp-mode').textContent=`Current consistency mode: ${a.consistencyMode}`;$('#rp-log-body').innerHTML=logs.map(x=>`<tr><td>${x.logId}</td><td>${x.table}</td><td>${x.operation}</td><td>${x.recordId}</td><td class="${replicationStatusClass(x.status)}">${x.status}</td><td>${x.createdAt}</td><td>${x.replicatedAt??'—'}</td></tr>`).join('')}catch(e){rpTerm.line(e.message,'bad')}}
+async function mode(m){try{const r=await request(`/api/consistency?mode=${m}`,'POST');rpTerm.line(`Consistency changed to ${r.consistencyMode}`,'info');await refreshReplication()}catch(e){rpTerm.line(e.message,'bad')}}
+$('#rp-strong').addEventListener('click',()=>mode('STRONG'));$('#rp-eventual').addEventListener('click',()=>mode('EVENTUAL'));$('#rp-refresh').addEventListener('click',refreshReplication);
+$('#rp-bid').addEventListener('click',async()=>{const id=+$('#rp-id').value,amt=+$('#rp-amt').value;rpTerm.clear();try{const r=await request(`/api/bid?bidderId=${id}&amount=${amt}`,'POST');rpTerm.line(r.message,r.message.includes('ACCEPTED')?'good':'bad');rpTerm.line(`Immediate: primary ${money(r.primaryBid)}, replica ${money(r.replicaBid)}`,'info');await refreshReplication();const a=await request('/api/auction');if(a.consistencyMode==='EVENTUAL'&&a.primaryBid!==a.replicaBid){rpTerm.line('Replica is temporarily stale. Watching PostgreSQL...','warn');for(let i=0;i<12;i++){await sleep(500);const x=await request('/api/auction');await refreshReplication();if(x.primaryBid===x.replicaBid){rpTerm.line('Replica caught up. Eventual consistency achieved.','good');break}}}}catch(e){rpTerm.line(e.message,'bad')}});
+loadUsers();refreshRmi();refreshThreads();refreshElection();refreshReplication();
+</script>
+</body>
+</html>
