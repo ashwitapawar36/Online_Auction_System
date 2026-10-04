@@ -103,6 +103,26 @@ public class AuctionApiServer {
             );
 
             server.createContext(
+                    "/api/load-balancing/state",
+                    AuctionApiServer::getLoadBalancingState
+            );
+
+            server.createContext(
+                    "/api/load-balancing/strategy",
+                    AuctionApiServer::setLoadBalancingStrategy
+            );
+
+            server.createContext(
+                    "/api/load-balancing/route",
+                    AuctionApiServer::routeLoadBalancingRequest
+            );
+
+            server.createContext(
+                    "/api/load-balancing/reset",
+                    AuctionApiServer::resetLoadBalancing
+            );
+
+            server.createContext(
                     "/api/users",
                     AuctionApiServer::users
             );
@@ -956,6 +976,93 @@ public class AuctionApiServer {
                     )
             );
         }
+    }
+
+
+    // =========================================================
+    // EXP 7 - LOAD BALANCING
+    //
+    // GET /api/load-balancing/state
+    // POST /api/load-balancing/strategy?strategy=ROUND_ROBIN
+    // POST /api/load-balancing/route?strategy=ROUND_ROBIN
+    // POST /api/load-balancing/reset
+    // =========================================================
+
+    private static void getLoadBalancingState(
+            HttpExchange exchange
+    ) throws IOException {
+
+        if (handleOptions(exchange)) {
+            return;
+        }
+
+        if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
+            sendResponse(exchange, 405, message("GET required"));
+            return;
+        }
+
+        sendResponse(exchange, 200, LoadBalancerService.getState());
+    }
+
+    private static void setLoadBalancingStrategy(
+            HttpExchange exchange
+    ) throws IOException {
+
+        if (handleOptions(exchange)) {
+            return;
+        }
+
+        if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
+            sendResponse(exchange, 405, message("POST required"));
+            return;
+        }
+
+        Map<String, String> params = getQueryParameters(exchange.getRequestURI());
+        String strategy = params.get("strategy");
+
+        if (strategy == null || strategy.trim().isEmpty()) {
+            sendResponse(exchange, 400, message("strategy required"));
+            return;
+        }
+
+        String current = LoadBalancerService.setStrategy(strategy);
+        sendResponse(exchange, 200, "{\"strategy\":\"" + escape(current) + "\"}");
+    }
+
+    private static void routeLoadBalancingRequest(
+            HttpExchange exchange
+    ) throws IOException {
+
+        if (handleOptions(exchange)) {
+            return;
+        }
+
+        if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
+            sendResponse(exchange, 405, message("POST required"));
+            return;
+        }
+
+        Map<String, String> params = getQueryParameters(exchange.getRequestURI());
+        String strategy = params.getOrDefault("strategy", "ROUND_ROBIN");
+        String result = LoadBalancerService.routeRequest(strategy);
+        sendResponse(exchange, 200, result);
+    }
+
+    private static void resetLoadBalancing(
+            HttpExchange exchange
+    ) throws IOException {
+
+        if (handleOptions(exchange)) {
+            return;
+        }
+
+        if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
+            sendResponse(exchange, 405, message("POST required"));
+            return;
+        }
+
+        String result = LoadBalancerService.reset();
+        sendResponse(exchange, 200, result);
     }
 
 
